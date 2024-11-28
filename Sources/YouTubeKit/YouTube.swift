@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import os.log
+@preconcurrency import os.log
 
 @available(iOS 13.0, watchOS 6.0, tvOS 13.0, macOS 10.15, *)
 public class YouTube {
@@ -14,8 +14,13 @@ public class YouTube {
     private var _js: String?
     private var _jsURL: URL?
     
+#if swift(>=5.10)
+    nonisolated(unsafe) private static var __js: String? // caches js between calls
+    nonisolated(unsafe) private static var __jsURL: URL?
+#else
     private static var __js: String? // caches js between calls
     private static var __jsURL: URL?
+#endif
     
     private var _videoInfos: [InnerTube.VideoInfo]?
     
@@ -23,6 +28,7 @@ public class YouTube {
     private var _embedHTML: String?
     private var playerConfigArgs: [String: Any]?
     private var _ageRestricted: Bool?
+    private var _signatureTimestamp: Int?
     
     private var _fmtStreams: [Stream]?
     
@@ -60,18 +66,16 @@ public class YouTube {
     
     let useOAuth: Bool
     let allowOAuthCache: Bool
-    let client: ClientType
     
     let methods: [ExtractionMethod]
     
     private let log = OSLog(YouTube.self)
     
     /// - parameter methods: Methods used to extract streams from the video - ordered by priority (Default: only local)
-    public init(videoID: String, proxies: [String: URL] = [:], useOAuth: Bool = false, allowOAuthCache: Bool = false, methods: [ExtractionMethod] = [.local], client: ClientType = .androidEmbed) {
+    public init(videoID: String, proxies: [String: URL] = [:], useOAuth: Bool = false, allowOAuthCache: Bool = false, methods: [ExtractionMethod] = [.local]) {
         self.videoID = videoID
         self.useOAuth = useOAuth
         self.allowOAuthCache = allowOAuthCache
-        self.client = client
         // TODO: install proxies if needed
         
         if methods.isEmpty {
@@ -82,9 +86,9 @@ public class YouTube {
     }
     
     /// - parameter methods: Methods used to extract streams from the video - ordered by priority (Default: only local)
-    public convenience init(url: URL, proxies: [String: URL] = [:], useOAuth: Bool = false, allowOAuthCache: Bool = false, methods: [ExtractionMethod] = [.local], client: ClientType = .androidEmbed) {
+    public convenience init(url: URL, proxies: [String: URL] = [:], useOAuth: Bool = false, allowOAuthCache: Bool = false, methods: [ExtractionMethod] = [.local]) {
         let videoID = Extraction.extractVideoID(from: url.absoluteString) ?? ""
-        self.init(videoID: videoID, proxies: proxies, useOAuth: useOAuth, allowOAuthCache: allowOAuthCache, methods: methods, client: client)
+        self.init(videoID: videoID, proxies: proxies, useOAuth: useOAuth, allowOAuthCache: allowOAuthCache, methods: methods)
     }
     
     
@@ -188,6 +192,17 @@ public class YouTube {
                 _js = YouTube.__js
             }
             return _js!
+        }
+    }
+
+    var signatureTimestamp: Int? {
+        get async throws {
+            if let cached = _signatureTimestamp {
+                return cached
+            }
+            
+            _signatureTimestamp = try await Extraction.extractSignatureTimestamp(fromJS: js)
+            return _signatureTimestamp!
         }
     }
     
@@ -310,7 +325,7 @@ public class YouTube {
             }
             
             // try extracting video infos from watch html directly as well
-            let watchVideoInfoTask = Task<InnerTube.VideoInfo?, Never> {
+            let watchVideoInfoTask = Task<InnerTube.VideoInfo?, Never> { [log] in
                 do {
                     return try await Extraction.getVideoInfo(fromHTML: watchHTML)
                 } catch let error {
@@ -318,11 +333,13 @@ public class YouTube {
                     return nil
                 }
             }
+
+            let signatureTimestamp = try await signatureTimestamp
             
-            let innertubeClients: [ClientType] = [.ios, .android]
+            let innertubeClients: [InnerTube.ClientType] = [.ios, .mWeb]
             
             let results: [Result<InnerTube.VideoInfo, Error>] = await innertubeClients.concurrentMap { [videoID, useOAuth, allowOAuthCache] client in
-                let innertube = InnerTube(client: client, useOAuth: useOAuth, allowCache: allowOAuthCache)
+                let innertube = InnerTube(client: client, signatureTimestamp: signatureTimestamp, useOAuth: useOAuth, allowCache: allowOAuthCache)
                 
                 do {
                     let innertubeResponse = try await innertube.player(videoID: videoID)
@@ -364,8 +381,9 @@ public class YouTube {
         }
     }
     
-    private func loadAdditionalVideoInfos(forClient client: ClientType) async throws -> InnerTube.VideoInfo {
-        let innertube = InnerTube(client: client, useOAuth: useOAuth, allowCache: allowOAuthCache)
+    private func loadAdditionalVideoInfos(forClient client: InnerTube.ClientType) async throws -> InnerTube.VideoInfo {
+        let signatureTimestamp = try await signatureTimestamp
+        let innertube = InnerTube(client: client, signatureTimestamp: signatureTimestamp, useOAuth: useOAuth, allowCache: allowOAuthCache)
         let videoInfo = try await innertube.player(videoID: videoID)
         
         // ignore if incorrect videoID
@@ -378,7 +396,8 @@ public class YouTube {
     }
     
     private func bypassAgeGate() async throws {
-        let innertube = InnerTube(client: .tvEmbed, useOAuth: useOAuth, allowCache: allowOAuthCache)
+        let signatureTimestamp = try await signatureTimestamp
+        let innertube = InnerTube(client: .tvEmbed, signatureTimestamp: signatureTimestamp, useOAuth: useOAuth, allowCache: allowOAuthCache)
         let innertubeResponse = try await innertube.player(videoID: videoID)
         
         if innertubeResponse.playabilityStatus?.status == "UNPLAYABLE" || innertubeResponse.playabilityStatus?.status == "LOGIN_REQUIRED" {
