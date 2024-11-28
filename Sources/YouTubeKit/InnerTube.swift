@@ -7,6 +7,10 @@
 
 import Foundation
 
+public enum ClientType: String {
+    case web, webSafari, android, androidMusic, webEmbed, webCreator, androidEmbed, tvEmbed, ios, iosMusic, mediaConnectFrontend, mWeb
+}
+
 @available(iOS 13.0, watchOS 6.0, tvOS 13.0, macOS 10.15, *)
 class InnerTube {
     
@@ -57,11 +61,7 @@ class InnerTube {
         ClientType.mediaConnectFrontend: Client(name: "MEDIA_CONNECT_FRONTEND", version: "0.1", screen: nil, apiKey: "", userAgent: nil),
         ClientType.mWeb: Client(name: "MWEB", version: "2.20240726.01.00", screen: nil, apiKey: "", userAgent: nil)
     ]
-    
-    enum ClientType: String {
-        case web, webSafari, android, androidMusic, webEmbed, webCreator, androidEmbed, tvEmbed, ios, iosMusic, mediaConnectFrontend, mWeb
-    }
-    
+   
     private var accessToken: String?
     private var refreshToken: String?
     

@@ -66,16 +66,18 @@ public class YouTube {
     
     let useOAuth: Bool
     let allowOAuthCache: Bool
+    let client: ClientType
     
     let methods: [ExtractionMethod]
     
     private let log = OSLog(YouTube.self)
     
     /// - parameter methods: Methods used to extract streams from the video - ordered by priority (Default: only local)
-    public init(videoID: String, proxies: [String: URL] = [:], useOAuth: Bool = false, allowOAuthCache: Bool = false, methods: [ExtractionMethod] = [.local]) {
+    public init(videoID: String, proxies: [String: URL] = [:], useOAuth: Bool = false, allowOAuthCache: Bool = false, methods: [ExtractionMethod] = [.local], client: ClientType = .androidEmbed) {
         self.videoID = videoID
         self.useOAuth = useOAuth
         self.allowOAuthCache = allowOAuthCache
+        self.client = client
         // TODO: install proxies if needed
         
         if methods.isEmpty {
@@ -86,9 +88,9 @@ public class YouTube {
     }
     
     /// - parameter methods: Methods used to extract streams from the video - ordered by priority (Default: only local)
-    public convenience init(url: URL, proxies: [String: URL] = [:], useOAuth: Bool = false, allowOAuthCache: Bool = false, methods: [ExtractionMethod] = [.local]) {
+    public convenience init(url: URL, proxies: [String: URL] = [:], useOAuth: Bool = false, allowOAuthCache: Bool = false, methods: [ExtractionMethod] = [.local], client: ClientType = .androidEmbed) {
         let videoID = Extraction.extractVideoID(from: url.absoluteString) ?? ""
-        self.init(videoID: videoID, proxies: proxies, useOAuth: useOAuth, allowOAuthCache: allowOAuthCache, methods: methods)
+        self.init(videoID: videoID, proxies: proxies, useOAuth: useOAuth, allowOAuthCache: allowOAuthCache, methods: methods, client: client)
     }
     
     
@@ -336,7 +338,7 @@ public class YouTube {
 
             let signatureTimestamp = try await signatureTimestamp
             
-            let innertubeClients: [InnerTube.ClientType] = [.ios, .mWeb]
+            let innertubeClients: [ClientType] = [.ios, .mWeb]
             
             let results: [Result<InnerTube.VideoInfo, Error>] = await innertubeClients.concurrentMap { [videoID, useOAuth, allowOAuthCache] client in
                 let innertube = InnerTube(client: client, signatureTimestamp: signatureTimestamp, useOAuth: useOAuth, allowCache: allowOAuthCache)
@@ -381,7 +383,7 @@ public class YouTube {
         }
     }
     
-    private func loadAdditionalVideoInfos(forClient client: InnerTube.ClientType) async throws -> InnerTube.VideoInfo {
+    private func loadAdditionalVideoInfos(forClient client: ClientType) async throws -> InnerTube.VideoInfo {
         let signatureTimestamp = try await signatureTimestamp
         let innertube = InnerTube(client: client, signatureTimestamp: signatureTimestamp, useOAuth: useOAuth, allowCache: allowOAuthCache)
         let videoInfo = try await innertube.player(videoID: videoID)
