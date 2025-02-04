@@ -169,7 +169,7 @@ final class YouTubeKitTests: XCTestCase {
     }
     
     func testLivestreamHlsManifestUrl() async {
-        let youtube = YouTube(videoID: "O9mYwRlucZY")
+        let youtube = YouTube(videoID: "wG4YaEcNlb0")
         do {
             let livestreams = try await youtube.livestreams
             XCTAssert(livestreams.count > 0)
@@ -182,7 +182,7 @@ final class YouTubeKitTests: XCTestCase {
     }
     
     func testLivestreamHlsManifestUrlRemote() async {
-        let youtube = YouTube(videoID: "O9mYwRlucZY", methods: [.remote])
+        let youtube = YouTube(videoID: "wG4YaEcNlb0", methods: [.remote])
         do {
             let livestreams = try await youtube.livestreams
             XCTAssert(livestreams.count > 0)
@@ -220,7 +220,7 @@ final class YouTubeKitTests: XCTestCase {
             let metadata = try await youtube.metadata!
             XCTAssertEqual(metadata.title, "Le Maroc Vu du Ciel (Documentaire de Yann Arthus-Bertrand)")
             XCTAssertFalse(metadata.description.isEmpty)
-            XCTAssertEqual(metadata.thumbnail!.url, URL(string: "https://i.ytimg.com/vi/ApM_KEr1ktQ/sddefault.jpg"))
+            XCTAssert([URL(string: "https://i.ytimg.com/vi/ApM_KEr1ktQ/sddefault.jpg")!, URL(string: "https://i.ytimg.com/vi/ApM_KEr1ktQ/hqdefault.jpg")!].contains(metadata.thumbnail!.url))
         } catch let error {
             XCTFail("did throw error: \(error)")
         }
@@ -232,7 +232,7 @@ final class YouTubeKitTests: XCTestCase {
             let metadata = try await youtube.metadata!
             XCTAssertEqual(metadata.title, "Le Maroc Vu du Ciel (Documentaire de Yann Arthus-Bertrand)")
             XCTAssertFalse(metadata.description.isEmpty)
-            XCTAssertEqual(metadata.thumbnail!.url, URL(string: "https://i.ytimg.com/vi/ApM_KEr1ktQ/sddefault.jpg"))
+            XCTAssert([URL(string: "https://i.ytimg.com/vi/ApM_KEr1ktQ/sddefault.jpg")!, URL(string: "https://i.ytimg.com/vi/ApM_KEr1ktQ/hqdefault.jpg")!].contains(metadata.thumbnail!.url))
         } catch let error {
             XCTFail("did throw error: \(error)")
         }

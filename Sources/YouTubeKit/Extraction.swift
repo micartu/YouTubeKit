@@ -124,6 +124,40 @@ class Extraction {
         return nil
     }
     
+    struct YtCfg: Decodable {
+        let VISITOR_DATA: String?
+        let INNERTUBE_CONTEXT: Context?
+        
+        struct Context: Decodable {
+            let client: Client
+            
+            struct Client: Decodable {
+                let visitorData: String?
+                let userAgent: String?
+            }
+        }
+        
+        var visitorData: String? {
+            VISITOR_DATA ?? INNERTUBE_CONTEXT?.client.visitorData
+        }
+        
+        var userAgent: String? {
+            INNERTUBE_CONTEXT?.client.userAgent
+        }
+    }
+    
+    class func extractYtCfg(from html: String) throws -> YtCfg {
+        if #available(iOS 16.0, macOS 13.0, watchOS 9.0, tvOS 16.0, *) {
+            let regex = #/ytcfg\.set\s*\(\s*(?={)/#
+            let cfg = try parseForObject(YtCfg.self, html: html, precedingRegex: regex)
+            return cfg
+        } else {
+            let regex = NSRegularExpression(#"ytcfg\.set\s*\(\s*"#)
+            let cfg = try parseForObject(YtCfg.self, html: html, precedingRegex: regex)
+            return cfg
+        }
+    }
+    
     /// Parses input html to find the end of a JavaScript object.
     /// - parameter html: HTML to be parsed for an object.
     /// - parameter precedingRegex: Regex to find the string preceding the object.
@@ -133,6 +167,26 @@ class Extraction {
         
         for result in results {
             let startIndex = result.end
+            do {
+                return try parseForObjectFromStartpoint(type, html: html, startPoint: startIndex)
+            } catch {
+                
+            }
+        }
+        
+        throw YouTubeKitError.htmlParseError
+    }
+    
+    /// Parses input html to find the end of a JavaScript object.
+    /// - parameter html: HTML to be parsed for an object.
+    /// - parameter precedingRegex: Regex to find the string preceding the object.
+    /// - returns: A decodable object
+    @available(iOS 16.0, macOS 13.0, watchOS 9.0, tvOS 16.0, *)
+    class func parseForObject<T: Decodable>(_ type: T.Type, html: String, precedingRegex: Regex<Substring>) throws -> T {
+        let results = html.matches(of: precedingRegex)
+        
+        for result in results {
+            let startIndex = result.endIndex
             do {
                 return try parseForObjectFromStartpoint(type, html: html, startPoint: startIndex)
             } catch {
